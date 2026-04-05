@@ -1,0 +1,189 @@
+import os
+import random
+from pptx import Presentation
+from pptx.util import Pt, Inches
+from io import BytesIO
+
+class PPTGenerator:
+    # def __init__(self, output_filename="presentation.pptx",title='presentation.pptx'):
+    def __init__(self, title='presentation.pptx'):
+        """Initialize the presentation generator"""
+        # self.output_filename = output_filename
+        self.title = title
+
+        self.FONT_SIZES = {
+            'title': 44,     
+            'intro': 20,         
+            'bullets': 18,       
+            'sub_bullets': 16,   
+            'supporting': 16,    
+            'paragraphs': 16,   
+            'small_text': 14
+        }
+
+        template_folder = r"templates"
+
+        if os.path.exists(template_folder):
+            templates = [f for f in os.listdir(template_folder) if f.endswith(".pptx")]
+
+            if templates:
+                selected_template = random.choice(templates)
+                self.prs = Presentation(os.path.join(template_folder, selected_template))
+            else:
+                self.prs = Presentation()
+        else:
+            self.prs = Presentation()
+        
+
+    def remove_first_slide(self):
+        """Remove the first slide if it exists"""
+        if len(self.prs.slides) > 0:
+            slide_id_list = self.prs.slides._sldIdLst
+            slides = list(slide_id_list)
+            slide_id_list.remove(slides[0])        
+        
+    def add_title_slide(self, title, subtitle=""):
+        """Add a title slide to the presentation"""
+        slide_layout = self.prs.slide_layouts[0]  # Title slide layout
+        slide = self.prs.slides.add_slide(slide_layout)
+        
+        title_shape = slide.shapes.title
+        subtitle_shape = slide.placeholders[1]
+        
+        title_shape.text = title
+        subtitle_shape.text = subtitle
+
+        for paragraph in title_shape.text_frame.paragraphs:
+            for run in paragraph.runs:
+                run.font.size = Pt(self.FONT_SIZES["title"])
+                run.font.bold = True
+        
+        return slide
+    
+    def add_content_slide(self, slide_data):
+
+        layouts = self.prs.slide_layouts
+
+        if len(layouts) > 1:
+            layout = layouts[1]
+        else:
+            layout = layouts[0]
+
+        slide = self.prs.slides.add_slide(layout)
+
+        # ===== TITLE =====
+        title_text = slide_data.get("slide_title", "")
+        slide.shapes.title.text = title_text
+
+        for paragraph in slide.shapes.title.text_frame.paragraphs:
+            for run in paragraph.runs:
+                run.font.size = Pt(self.FONT_SIZES["title"])
+
+        # ===== FIND BODY PLACEHOLDER =====
+
+        body_shape = None
+
+        for shape in slide.placeholders:
+            if shape.placeholder_format.type == 2:
+                body_shape = shape
+                break
+
+        if not body_shape:
+            try:
+                body_shape = slide.placeholders[1]
+            except:
+                # print("No body placeholder found")
+                return slide
+
+
+        text_frame = body_shape.text_frame
+        
+        text_frame.clear()
+        text_frame.word_wrap = True
+
+        # ===== INTRO LINE =====
+
+        intro = slide_data.get("intro_line")
+
+        if intro:
+            p = text_frame.paragraphs[0]
+            p.text = intro
+            p.level = 0
+            # p.space_after = Pt(12)
+            p.space_after = Pt(8)
+
+            for run in p.runs:
+                run.font.size = Pt(self.FONT_SIZES["intro"])
+                run.font.bold = False
+
+        # ===== BULLET POINTS =====
+
+        bullets = slide_data.get("bullet_points", [])
+
+        for bullet in bullets:
+            p = text_frame.add_paragraph()
+            p.text = bullet
+            p.level = 1
+            p.space_after = Pt(4)
+
+            for run in p.runs:
+                run.font.size = Pt(self.FONT_SIZES["bullets"])
+
+        # ===== SUPPORTING TEXT =====
+
+        supporting = slide_data.get("supporting_text")
+
+        if supporting:
+
+            p = text_frame.add_paragraph()
+            p.text = ""
+            p.space_after = Pt(6)
+
+            p = text_frame.add_paragraph()
+            p.text = supporting
+            p.level = 0
+            p.space_after = Pt(6)
+
+            for run in p.runs:
+                run.font.size = Pt(self.FONT_SIZES["supporting"])
+                run.font.italic = True
+
+        # ===== PARAGRAPHS =====
+
+        paragraphs = slide_data.get("paragraphs", [])
+        if paragraphs:
+            for para in paragraphs:
+
+                p = text_frame.add_paragraph()
+                p.text = para
+                p.level = 0
+                p.space_after = Pt(8)
+
+                for run in p.runs:
+                    run.font.size = Pt(self.FONT_SIZES["paragraphs"])
+
+        return slide
+    
+    def generate_from_list(self, slides_data):
+
+        # Title slide
+        self.add_title_slide(self.title, "Generated by Ritey")
+
+        for slide in slides_data:
+            self.add_content_slide(slide)
+
+        # End slide
+        self.add_title_slide("Thank You!", "Questions?")
+        self.remove_first_slide()
+    
+    # def save(self):
+
+    #     self.prs.save()
+
+    #     # return self.output_filename
+
+    def save(self):
+        ppt_io = BytesIO()
+        self.prs.save(ppt_io)
+        ppt_io.seek(0)  # Move cursor to start
+        return ppt_io

@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.git
+.gitignore
+.env
+*.log
+*.md
+.venv
+venv
+env/
+.pytest_cache
+frontend/streamlit.log
