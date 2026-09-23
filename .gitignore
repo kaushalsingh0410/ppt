@@ -208,3 +208,7 @@ __marimo__/
 
 
 .db
+ppt.db
+checkpoints.db
+checkpoints.db-shm
+checkpoints.db-wal
