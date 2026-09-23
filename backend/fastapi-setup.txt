@@ -1,6 +1,5 @@
 alembic---
 
-1. cd my_project
     alembic init alembic
 
 
