@@ -1,6 +1,5 @@
 import ast
 from datetime import datetime
-# from langchain_ai21.chat_models import ChatAI21
 from langchain_groq import ChatGroq
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_community.tools.tavily_search import TavilySearchResults
@@ -10,9 +9,13 @@ from langgraph.graph import StateGraph,START,END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from typing import TypedDict,Annotated, List, Dict, Literal,Optional
-from langgraph.checkpoint.postgres import PostgresSaver
+# from langgraph.checkpoint.postgres import PostgresSaver
+# from psycopg_pool import ConnectionPool
+
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
+
 from langsmith import traceable
-from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 from json_repair import repair_json
 import re
@@ -22,7 +25,6 @@ import json
 import os
 from urllib.parse import quote_plus
 load_dotenv()
-# DB_URL = os.getenv("PPT_URL")
 
 DB_URL = "postgresql://{}:{}@{}:{}/{}".format(
     os.getenv("DB_USER"),
@@ -62,7 +64,7 @@ class DetailedSlideOutput(BaseModel):
     supporting_text: Optional[str] = None
     paragraphs: Optional[List[str]] = None
 
-model = ChatGroq(model="llama-3.3-70b-versatile")
+model = ChatGroq(model="openai/gpt-oss-120b")
 # model = ChatAI21(model="jamba-mini-2-2026-01")
 searchTool = TavilySearchResults(max_results=2)
 tools = [searchTool]
@@ -308,20 +310,37 @@ def build_workflow():
     )
 
     return workflow
-def create_ckeckpointer_and_graph(db_url: str):
-    if not db_url:
-        raise ValueError('Database Url environment variable not set')
-    connection_kwargs = {
-            "autocommit": True,
-            "prepare_threshold": 0,
-        }
-    pool = ConnectionPool(
-        conninfo=db_url,
-            max_size=20,
-            kwargs=connection_kwargs,
+
+# def create_checkpointer_and_graph(db_url: str):
+#     if not db_url:
+#         raise ValueError('Database Url environment variable not set')
+#     connection_kwargs = {
+#             "autocommit": True,
+#             "prepare_threshold": 0,
+#         }
+#     pool = ConnectionPool(
+#         conninfo=db_url,
+#             max_size=20,
+#             kwargs=connection_kwargs,
+#     )
+#     checkpointer = PostgresSaver(pool)
+#     checkpointer.setup()
+#     workflow = build_workflow()
+#     graph = workflow.compile(checkpointer=checkpointer)
+#     return checkpointer, graph
+
+
+def create_checkpoint_and_graph():
+    conn = sqlite3.connect(
+        "checkpoints.db",
+        check_same_thread=False
     )
-    checkpointer = PostgresSaver(pool)
-    checkpointer.setup()
+
+    checkpointer = SqliteSaver(conn)
+
     workflow = build_workflow()
-    graph = workflow.compile(checkpointer=checkpointer)
+    graph = workflow.compile(
+        checkpointer=checkpointer
+    )
+
     return checkpointer, graph

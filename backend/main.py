@@ -10,18 +10,17 @@ from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from dotenv import load_dotenv
 from groq import RateLimitError
-import os
 import re
 import time
 from .database import get_db
 from .models import Thread
-from .graph import create_ckeckpointer_and_graph
+from .graph import create_checkpoint_and_graph
 from .ppt_generator import PPTGenerator
 from .schemas import Ppt, ThreadResponse, ThreadWithStateResponse
 from fastapi.responses import StreamingResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
-from urllib.parse import quote_plus
+# from urllib.parse import quote_plus
 
 load_dotenv()
 
@@ -29,34 +28,54 @@ BASE_DIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEDIA_DIR = os.path.join(BASE_DIT,"media")
 os.makedirs(MEDIA_DIR,exist_ok=True)
 # PPT_URL = os.getenv('PPT_URL')
-PPT_URL = "postgresql://{}:{}@{}:{}/{}".format(
-    os.getenv("DB_USER"),
-    quote_plus(os.getenv("DB_PASSWORD", "")),
-    os.getenv("DB_HOST", "localhost"),
-    os.getenv("DB_PORT", "5432"),
-    os.getenv("DB_NAME"),
-)
+# PPT_URL = "postgresql://{}:{}@{}:{}/{}".format(
+#     os.getenv("DB_USER"),
+#     quote_plus(os.getenv("DB_PASSWORD", "")),
+#     os.getenv("DB_HOST", "localhost"),
+#     os.getenv("DB_PORT", "5432"),
+#     os.getenv("DB_NAME"),
+# )
+
+
 app_state = {
     "checkpointer":None,
     "graph":None
 }
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     try:
+#         app_state["checkpointer"], app_state['graph'] = create_ckeckpointer_and_graph(PPT_URL)
+#         # scheduler.add_job(my_job, "interval", seconds=14)
+#         scheduler.add_job(my_job, "interval", minutes=14)
+#         scheduler.start()
+#         yield
+#     finally:
+#         scheduler.shutdown()
+#         try:
+#             if app_state["checkpointer"]:
+#                 pool = app_state["checkpointer"].pool
+#                 if pool:
+#                     pool.close()
+#         except Exception as e:
+#             print(f'Error closing pool: {e}')
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        app_state["checkpointer"], app_state['graph'] = create_ckeckpointer_and_graph(PPT_URL)
-        # scheduler.add_job(my_job, "interval", seconds=14)
-        scheduler.add_job(my_job, "interval", minutes=14)
-        scheduler.start()
+        app_state["checkpointer"], app_state["graph"] = (
+            create_checkpoint_and_graph()
+        )
+
+        # scheduler.add_job(my_job, "interval", minutes=14)
+        # scheduler.start()
+
         yield
+
     finally:
         scheduler.shutdown()
-        try:
-            if app_state["checkpointer"]:
-                pool = app_state["checkpointer"].pool
-                if pool:
-                    pool.close()
-        except Exception as e:
-            print(f'Error closing pool: {e}')
+
+
 def get_graph_deps():
     if not app_state["graph"]:
         raise RuntimeError("Graph not initialized. Check startup logs.")
@@ -67,11 +86,8 @@ def get_graph_deps():
 app = FastAPI(lifespan = lifespan)
 scheduler = BackgroundScheduler()
 
-def my_job():
-    # print("Running scheduled job...")
-    response = requests.get('https://ppt-ritey.onrender.com/')
-                            # "https://ppt-ritey.onrender.com"
-    # print('response',response)
+# def my_job():
+#     response = requests.get('https://ppt-ritey.onrender.com/')
 
 @app.get("/")
 def hellow():
